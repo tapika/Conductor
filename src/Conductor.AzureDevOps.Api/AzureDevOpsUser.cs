@@ -14,5 +14,10 @@ namespace Conductor.AzureDevOps.Api
 			Name = name;
 			EmailAddress = emailAddress;
 		}
-	}
+
+        public override string ToString()
+        {
+			return $"{Name} ({EmailAddress})";
+        }
+    }
 }

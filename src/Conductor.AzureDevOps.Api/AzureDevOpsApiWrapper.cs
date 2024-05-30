@@ -35,6 +35,23 @@ namespace Conductor.AzureDevOps.Api
 				.Select(x => new AzureDevOpsRepository(x.Name, x.DefaultBranch, x.RemoteUrl));
 		}
 
+		public async Task<IEnumerable<PolicyConfiguration>> ListBuildPolicyConfigurations(NetworkCredential credentials, string organization, string project, string repositoryName, string branchName)
+		{ 
+            var repos = await s_api.ListRepositoriesAsync(organization, project, credentials);
+			var repo = repos.FirstOrDefault(x => x.Name.Equals(repositoryName, StringComparison.InvariantCultureIgnoreCase));
+			if (repo == null)
+			{
+				throw new ArgumentException($"Repository '{repositoryName}' not found in organization {organization} / project {project}");
+			}
+
+			var query = new PolicyConfigurationsQuery()
+			{ 
+				RepositoryId = repo.Id, RefName = branchName.MakeRefSpec(), PolicyType = PolicyTypeRef.BuildPolicyType 
+			};
+			
+			return await s_api.ListPolicyConfigurations(credentials, organization, project, query);
+		}
+
 		public async Task<string> GetRepositoryDefaultBranchAsync(string organization, string projectName, NetworkCredential credentials, string repositoryName)
 		{
 			var repos = await ListRepositoriesAsync(organization, projectName, credentials);
