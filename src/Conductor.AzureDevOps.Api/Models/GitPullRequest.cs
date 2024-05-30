@@ -41,5 +41,10 @@ namespace Conductor.AzureDevOps.Api.Models
 		public string Title { get; set; }
 		public string Url { get; set; }
 		public IEnumerable<ResourceRef> WorkItemRefs { get; set; }
-	}
+
+        public override string ToString()
+        {
+			return $"{nameof(GitPullRequest)}{{ PullRequestId = {PullRequestId} }}";
+		}
+    }
 }

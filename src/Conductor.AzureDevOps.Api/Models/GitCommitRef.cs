@@ -21,5 +21,10 @@ namespace Conductor.AzureDevOps.Api.Models
 		public IEnumerable<GitStatus> Statuses { get; set; }
 		public string Url { get; set; }
 		public IEnumerable<ResourceRef> WorkItems { get; set; }
-	}
+
+        public override string ToString()
+        {
+            return $"{nameof(GitCommitRef)}{{ CommitId = {CommitId} }}";
+        }
+    }
 }
