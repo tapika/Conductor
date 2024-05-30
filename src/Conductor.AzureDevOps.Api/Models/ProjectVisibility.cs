@@ -3,6 +3,7 @@
 	public enum ProjectVisibility
 	{
 		Private,
-		Public
+		Public,
+		Unchanged
 	}
 }
