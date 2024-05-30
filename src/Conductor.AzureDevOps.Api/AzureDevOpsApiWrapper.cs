@@ -93,27 +93,63 @@ namespace Conductor.AzureDevOps.Api
 			return results;
 		}
 
-		public async Task<GitPullRequest> CreatePullRequestAsync(string organization, string projectName, NetworkCredential credentials, string repositoryName, string branchName,
-			IEnumerable<string> reviewerEmailAddresses, bool autoComplete)
+		public GitPullRequest CreatePullRequest(NetworkCredential credentials, string organization, string projectName, string repositoryName,
+			string sourceBranch, string targetBranch, string description, bool autoComplete, bool approved, IdentityRef creator, params string[] reviewerIds)
 		{
-			var repository = (await s_api.ListRepositoriesAsync(organization, projectName, credentials))
-				.FirstOrDefault(x => x.Name.Equals(repositoryName, StringComparison.InvariantCultureIgnoreCase));
-			if (repository is null)
+			return CreatePullRequestAsync(credentials, organization, projectName, repositoryName, sourceBranch, targetBranch, description, autoComplete, approved, creator, reviewerIds).Result;
+		}
+
+		public async Task<GitPullRequest> CreatePullRequestAsync(NetworkCredential credentials, string organization, string projectName, string repositoryName, 
+			string sourceBranch, string targetBranch, string description, bool autoComplete, bool approved, IdentityRef creator, params string[] reviewerIds)
+		{
+			var completionOptions = new GitPullRequestCompletionOptions()
 			{
-				return default;
+				DeleteSourceBranch = true,
+				MergeStrategy = GitPullRequestMergeStrategy.Rebase
+			};
+
+			GitPullRequest preq = new GitPullRequest()
+			{
+				Title = $"Merge {sourceBranch} into {targetBranch}",
+				SourceRefName = sourceBranch.MakeRefSpec(),
+				TargetRefName = targetBranch.MakeRefSpec(),
+				Reviewers = reviewerIds.Select(x => new IdentityRefWithVote() { Id = x, IsRequired = true }).ToArray(),
+				CompletionOptions = completionOptions,
+				Description = description,
+				CreatedBy = creator
+			};
+
+			if (creator != null)
+			{
+				// Even thus we assign this field, it will be ignored. See:
+				// https://github.com/MicrosoftDocs/vsts-rest-api-specs/issues/403
+				// https://developercommunity.visualstudio.com/t/changed-createdby-with-git-create-pull-request-api/459964
+				preq.CreatedBy = creator;
 			}
 
-			// select reviewers
-			var reviewerIds = await GetReviewerIdsByEmailAsync(organization, credentials, reviewerEmailAddresses.ToArray());
-
-			var body = MakePullRequest(branchName, reviewerIds);
-			var result = await s_api.CreatePullRequestAsync(organization, projectName, repository.Id, credentials, body);
-			if (autoComplete)
+			return await AzureDevOpsApi.try_catch_server_exception(async () =>
 			{
-				result = await s_api.AutoCompletePullRequestAsync(organization, projectName, repository.Id, credentials, result.PullRequestId, result.CreatedBy);
-			}
+				var repository = (await s_api.ListRepositoriesAsync(organization, projectName, credentials))
+					.FirstOrDefault(x => x.Name.Equals(repositoryName, StringComparison.InvariantCultureIgnoreCase));
+				if (repository is null)
+				{
+					return default;
+				}
 
-			return result;
+				var result = await s_api.CreatePullRequestAsync(organization, projectName, repository.Id, credentials, preq);
+				if (autoComplete)
+				{
+					result = await s_api.UpdatePullRequestAsync(organization, projectName, 
+						repository.Id, credentials, result.PullRequestId, result.CreatedBy, completionOptions);
+				}
+
+				if (approved)
+				{
+					await s_api.ApprovePullRequestAsync(credentials, organization, projectName, repository.Id, result);
+				}
+
+				return result;
+			});
 		}
 
 		public async Task<GitPullRequest> AbandonPullRequestAsync(string organization, string projectName, NetworkCredential credentials, string repositoryName, int pullRequestId)
